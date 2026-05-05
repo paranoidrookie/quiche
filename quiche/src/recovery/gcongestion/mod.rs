@@ -26,6 +26,7 @@
 
 mod bbr;
 mod bbr2;
+mod brutal;
 pub mod pacer;
 mod recovery;
 
@@ -128,6 +129,20 @@ pub(super) trait CongestionControl: Debug {
     #[cfg(feature = "qlog")]
     fn ssthresh(&self) -> Option<u64> {
         None
+    }
+
+    #[cfg(feature = "qlog")]
+    fn send_rate(&self) -> Option<Bandwidth> {
+        None
+    }
+
+    #[cfg(feature = "qlog")]
+    fn ack_rate(&self) -> Option<Bandwidth> {
+        None
+    }
+
+    fn time_sent_set_to_now(&self) -> bool {
+        false
     }
 }
 

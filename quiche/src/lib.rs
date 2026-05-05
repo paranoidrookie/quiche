@@ -611,6 +611,9 @@ pub struct Config {
     /// When true, uses the initial max data (for connection
     /// and stream) as the initial flow control window.
     use_initial_max_data_as_flow_control_win: bool,
+
+    /// Target bitrate for Brutal congestion control in bps.
+    target_bps: Option<u64>,
 }
 
 // See https://quicwg.org/base-drafts/rfc9000.html#section-15
@@ -691,6 +694,8 @@ impl Config {
             initial_rtt: DEFAULT_INITIAL_RTT,
 
             use_initial_max_data_as_flow_control_win: false,
+
+            target_bps: None,
         })
     }
 
@@ -1173,6 +1178,16 @@ impl Config {
     /// By default pacing rate is not limited.
     pub fn set_max_pacing_rate(&mut self, v: u64) {
         self.max_pacing_rate = Some(v);
+    }
+
+    /// Sets the target bitrate for Brutal congestion control in bps.
+    ///
+    /// The default value is `None`, meaning Brutal will use a default
+    /// initial rate until the application sets one.
+    ///
+    /// This has no effect when cc_algorithm is not `Brutal`.
+    pub fn set_target_bps(&mut self, v: u64) {
+        self.target_bps = Some(v);
     }
 
     /// Configures whether to enable receiving DATAGRAM frames.
@@ -2649,6 +2664,27 @@ impl<F: BufFactory> Connection<F> {
         let ex_data = tls::ExData::from_ssl_ref(ssl).ok_or(Error::TlsFail)?;
 
         ex_data.recovery_config.max_pacing_rate = v;
+
+        Ok(())
+    }
+
+    /// Sets the target bitrate for Brutal congestion control in bps.
+    ///
+    /// This function can only be called inside one of BoringSSL's handshake
+    /// callbacks, before any packet has been sent. Calling this function any
+    /// other time will have no effect.
+    ///
+    /// See [`Config::set_target_bps()`].
+    ///
+    /// [`Config::set_target_bps()`]: struct.Config.html#method.set_target_bps
+    #[cfg(feature = "boringssl-boring-crate")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "boringssl-boring-crate")))]
+    pub fn set_target_bps_in_handshake(
+        ssl: &mut boring::ssl::SslRef, v: u64,
+    ) -> Result<()> {
+        let ex_data = tls::ExData::from_ssl_ref(ssl).ok_or(Error::TlsFail)?;
+
+        ex_data.recovery_config.target_bps = Some(v);
 
         Ok(())
     }

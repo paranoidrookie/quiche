@@ -42,6 +42,7 @@ use crate::recovery::MAX_PTO_PROBES_COUNT;
 use crate::recovery::PACKET_REORDER_TIME_THRESHOLD;
 
 use super::bbr2::BBRv2;
+use super::brutal::BrutalSender;
 use super::pacer::Pacer;
 use super::Acked;
 use super::Lost;
@@ -480,16 +481,28 @@ impl GRecovery {
     }
 
     pub fn new(recovery_config: &RecoveryConfig) -> Option<Self> {
-        let cc = match recovery_config.cc_algorithm {
-            CongestionControlAlgorithm::Bbr2Gcongestion => BBRv2::new(
-                recovery_config.initial_congestion_window_packets,
-                MAX_WINDOW_PACKETS,
-                recovery_config.max_send_udp_payload_size,
-                recovery_config.initial_rtt,
-                recovery_config.custom_bbr_params.as_ref(),
-            ),
-            _ => return None,
-        };
+        let cc: Box<dyn super::CongestionControl> =
+            match recovery_config.cc_algorithm {
+                CongestionControlAlgorithm::Bbr2Gcongestion => {
+                    Box::new(BBRv2::new(
+                        recovery_config.initial_congestion_window_packets,
+                        MAX_WINDOW_PACKETS,
+                        recovery_config.max_send_udp_payload_size,
+                        recovery_config.initial_rtt,
+                        recovery_config.custom_bbr_params.as_ref(),
+                    ))
+                },
+                CongestionControlAlgorithm::Brutal => {
+                    Box::new(BrutalSender::new(
+                        recovery_config.target_bps.unwrap_or(0),
+                        recovery_config.initial_congestion_window_packets,
+                        MAX_WINDOW_PACKETS,
+                        recovery_config.max_send_udp_payload_size,
+                        recovery_config.initial_rtt,
+                    ))
+                },
+                _ => return None,
+            };
 
         Some(Self {
             epochs: Default::default(),

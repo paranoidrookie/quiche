@@ -527,6 +527,7 @@ impl BBRv2 {
         }
     }
 
+    #[allow(dead_code)]
     pub fn time_sent_set_to_now(&self) -> bool {
         self.params.time_sent_set_to_now
     }
@@ -795,6 +796,10 @@ impl CongestionControl for BBRv2 {
 
     fn limit_cwnd(&mut self, max_cwnd: usize) {
         self.cwnd_limits.hi = max_cwnd
+    }
+
+    fn time_sent_set_to_now(&self) -> bool {
+        self.params.time_sent_set_to_now
     }
 }
 

@@ -139,6 +139,7 @@ pub struct RecoveryConfig {
     pub initial_congestion_window_packets: usize,
     pub enable_relaxed_loss_threshold: bool,
     pub enable_cubic_idle_restart_fix: bool,
+    pub target_bps: Option<u64>,
 }
 
 impl RecoveryConfig {
@@ -156,6 +157,7 @@ impl RecoveryConfig {
                 .initial_congestion_window_packets,
             enable_relaxed_loss_threshold: config.enable_relaxed_loss_threshold,
             enable_cubic_idle_restart_fix: config.enable_cubic_idle_restart_fix,
+            target_bps: config.target_bps,
         }
     }
 }
@@ -372,6 +374,8 @@ pub enum CongestionControlAlgorithm {
     /// BBRv2 congestion control algorithm implementation from gcongestion
     /// branch. `bbr2_gcongestion` in a string form.
     Bbr2Gcongestion = 4,
+    /// Brutal congestion control algorithm. `brutal` in a string form.
+    Brutal          = 5,
 }
 
 impl FromStr for CongestionControlAlgorithm {
@@ -387,6 +391,7 @@ impl FromStr for CongestionControlAlgorithm {
             "bbr" => Ok(CongestionControlAlgorithm::Bbr2Gcongestion),
             "bbr2" => Ok(CongestionControlAlgorithm::Bbr2Gcongestion),
             "bbr2_gcongestion" => Ok(CongestionControlAlgorithm::Bbr2Gcongestion),
+            "brutal" => Ok(CongestionControlAlgorithm::Brutal),
             _ => Err(crate::Error::CongestionControl),
         }
     }
