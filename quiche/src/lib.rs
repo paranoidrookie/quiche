@@ -359,17 +359,18 @@
 //! quiche defines a number of [feature flags] to reduce the amount of compiled
 //! code and dependencies:
 //!
-//! * `boringssl-vendored` (default): Build the vendored BoringSSL library.
-//!
-//! * `boringssl-boring-crate`: Use the BoringSSL library provided by the
-//!   [boring] crate. It takes precedence over `boringssl-vendored` if both
-//!   features are enabled.
+//! * `boringssl-boring-crate` (default): Use the BoringSSL library provided by
+//!   the [boring] crate.
 //!
 //! * `pkg-config-meta`: Generate pkg-config metadata file for libquiche.
 //!
 //! * `ffi`: Build and expose the FFI API.
 //!
 //! * `qlog`: Enable support for the [qlog] logging format.
+//!
+//! * `custom-client-dcid`: Allow clients to supply a custom DCID when
+//!   initiating a connection. Dangerous if the DCID does not meet QUIC's
+//!   unpredictability and length requirements.
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 //! [boring]: https://crates.io/crates/boring
@@ -1053,10 +1054,14 @@ impl Config {
 
     /// Sets the `ack_delay_exponent` transport parameter.
     ///
+    /// Values above the RFC 9000 maximum of
+    /// [`MAX_ACK_DELAY_EXPONENT`] (20) are clamped to that
+    /// maximum.
+    ///
     /// The default value is `3`.
     pub fn set_ack_delay_exponent(&mut self, v: u64) {
         self.local_transport_params.ack_delay_exponent =
-            cmp::min(v, octets::MAX_VAR_INT);
+            cmp::min(v, MAX_ACK_DELAY_EXPONENT);
     }
 
     /// Sets the `max_ack_delay` transport parameter.
@@ -7335,12 +7340,16 @@ impl<F: BufFactory> Connection<F> {
         self.ids.active_source_cids()
     }
 
-    /// Returns the number of source Connection IDs that should be provided
-    /// to the peer without exceeding the limit it advertised.
+    /// Returns the number of additional source Connection IDs that can be
+    /// provided to the peer without exceeding the limit it advertised.
     ///
-    /// This will automatically limit the number of Connection IDs to the
-    /// minimum between the locally configured active connection ID limit,
-    /// and the one sent by the peer.
+    /// The limit is the minimum of the locally configured active connection
+    /// ID limit and the one sent by the peer.
+    ///
+    /// Returns `0` when the peer's limit is already reached or temporarily
+    /// exceeded (e.g. during a SCID rotation where a retirement is in
+    /// flight and `active_scids()` transiently exceeds the advertised
+    /// limit).
     ///
     /// To obtain the maximum possible value allowed by the peer an application
     /// can instead inspect the [`peer_active_conn_id_limit`] value.
@@ -7353,7 +7362,7 @@ impl<F: BufFactory> Connection<F> {
             self.local_transport_params.active_conn_id_limit,
         ) as usize;
 
-        max_active_source_cids - self.active_scids()
+        max_active_source_cids.saturating_sub(self.active_scids())
     }
 
     /// Requests the retirement of the destination Connection ID used by the
@@ -9384,6 +9393,7 @@ impl std::fmt::Display for AddrTupleFmt {
 ///
 /// [`stats()`]: struct.Connection.html#method.stats
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct Stats {
     /// The number of QUIC packets received.
     pub recv: usize,
@@ -9521,6 +9531,7 @@ pub use crate::transport_params::TransportParams;
 pub use crate::transport_params::UnknownTransportParameter;
 pub use crate::transport_params::UnknownTransportParameterIterator;
 pub use crate::transport_params::UnknownTransportParameters;
+pub use crate::transport_params::MAX_ACK_DELAY_EXPONENT;
 
 pub use crate::buffers::BufFactory;
 pub use crate::buffers::BufSplit;
